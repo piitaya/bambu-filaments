@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate bambu_variants.json mapping Bambu Lab RFID variant IDs to SpoolmanDB filament IDs."""
+"""Generate filaments.json mapping Bambu Lab RFID variant IDs to SpoolmanDB filament IDs."""
 
 import json
 import re
@@ -266,7 +266,7 @@ def main():
 
     # Write output
     results.sort(key=lambda x: x["id"])
-    with open("bambu_variants.json", "w") as f:
+    with open("filaments.json", "w") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
         f.write("\n")
 
@@ -292,7 +292,7 @@ def main():
             names = ", ".join(f'{r["color_name"]} ({r["id"]})' for r in by_mat[mat])
             print(f"  {mat}: {names}")
 
-    print(f"\nWrote bambu_variants.json")
+    print(f"\nWrote filaments.json")
 
 
 if __name__ == "__main__":

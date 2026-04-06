@@ -13,7 +13,7 @@ This project maps these variant IDs to [SpoolmanDB](https://github.com/Donkie/Sp
 
 ## JSON format
 
-Each entry in [`bambu_variants.json`](bambu_variants.json):
+Each entry in [`filaments.json`](filaments.json):
 
 ```json
 {
@@ -43,7 +43,7 @@ python3 generate.py
 
 Python 3.10+, no external dependencies.
 
-The script downloads three sources, cross-references them, and outputs `bambu_variants.json`.
+The script downloads three sources, cross-references them, and outputs `filaments.json`.
 
 ## Data sources
 
