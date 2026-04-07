@@ -172,7 +172,9 @@ def build_display_name(section: str, color: str) -> str:
     return f"{prefix}{color}{suffix}"
 
 
-def find_spoolman_match(section: str, color: str, spoolman: dict) -> tuple[str | None, str | None, str | None]:
+def find_spoolman_match(
+    section: str, color: str, spoolman: dict, bambu_hex: str | None = None
+) -> tuple[str | None, str | None, str | None]:
     """Find SpoolmanDB match. Returns (id, name, color_hex) or (None, None, None)."""
     config = MATERIAL_MAP.get(section)
     if config is None:
@@ -211,6 +213,14 @@ def find_spoolman_match(section: str, color: str, spoolman: dict) -> tuple[str |
         if base == target or normalize(base) == norm:
             return _found(c)
 
+    # Hex match (last resort, only within same material)
+    if bambu_hex:
+        bambu_hex_norm = bambu_hex.lower()
+        for c in candidates:
+            c_hex = (c.get("color_hex") or "").lower()
+            if c_hex and c_hex == bambu_hex_norm:
+                return _found(c)
+
     return None, None, None
 
 
@@ -234,16 +244,21 @@ def main():
     # Match and build results
     results = []
     seen = set()
+    hex_mismatches = []
 
     for entry in rfid_entries:
         if entry["variant_id"] in seen:
             continue
         seen.add(entry["variant_id"])
 
-        spoolman_id, spoolman_name, spoolman_hex = find_spoolman_match(entry["section"], entry["color"], spoolman)
+        bambu_info = bambu_names.get(entry["code"])
+        bambu_hex = bambu_info["color_hex"] if bambu_info else None
+
+        spoolman_id, spoolman_name, spoolman_hex = find_spoolman_match(
+            entry["section"], entry["color"], spoolman, bambu_hex
+        )
 
         # Name priority: BambuStudio official > SpoolmanDB > constructed
-        bambu_info = bambu_names.get(entry["code"])
         color_name = (
             (bambu_info["name"] if bambu_info else None)
             or spoolman_name
@@ -251,7 +266,11 @@ def main():
         )
 
         # Hex priority: BambuStudio official > SpoolmanDB
-        color_hex = (bambu_info["color_hex"] if bambu_info else None) or spoolman_hex
+        color_hex = bambu_hex or spoolman_hex
+
+        # Consistency check: warn if matched entry has a different hex
+        if spoolman_id and bambu_hex and spoolman_hex and bambu_hex.lower() != spoolman_hex.lower():
+            hex_mismatches.append((entry["variant_id"], color_name, bambu_hex, spoolman_hex, spoolman_id))
 
         result = {
             "id": entry["variant_id"],
@@ -282,6 +301,11 @@ def main():
         print(f"\nUnknown RFID sections (not in MATERIAL_MAP):")
         for s in sorted(unknown_sections):
             print(f"  - {s}")
+
+    if hex_mismatches:
+        print("\nHex mismatches (BambuStudio vs SpoolmanDB):")
+        for vid, name, bhex, shex, sid in hex_mismatches:
+            print(f"  {vid} {name}: bambu=#{bhex} spoolman=#{shex} ({sid})")
 
     if unmatched:
         print(f"\nUnmatched entries:")
