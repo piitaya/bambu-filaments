@@ -3,9 +3,13 @@
 
 import json
 import re
+import subprocess
 import urllib.request
+from pathlib import Path
 
-RFID_URL = "https://raw.githubusercontent.com/queengooborg/Bambu-Lab-RFID-Library/main/README.md"
+RFID_REPO_URL = "https://github.com/queengooborg/Bambu-Lab-RFID-Library.git"
+RFID_README_URL = "https://raw.githubusercontent.com/queengooborg/Bambu-Lab-RFID-Library/main/README.md"
+RFID_CACHE_DIR = Path(".cache/rfid-library")
 SPOOLMAN_URL = "https://donkie.github.io/SpoolmanDB/filaments.json"
 BAMBU_COLORS_URL = "https://raw.githubusercontent.com/bambulab/BambuStudio/master/resources/profiles/BBL/filament/filaments_color_codes.json"
 MANUAL_ADDITIONS_FILE = "manual_additions.json"
@@ -124,6 +128,110 @@ def parse_rfid_readme(markdown: str) -> list[dict]:
     return entries
 
 
+def fetch_rfid_repo():
+    """Clone or update the RFID library locally for dump parsing."""
+    if RFID_CACHE_DIR.exists():
+        subprocess.run(
+            ["git", "-C", str(RFID_CACHE_DIR), "pull", "--quiet", "--ff-only"],
+            check=True,
+        )
+    else:
+        RFID_CACHE_DIR.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            ["git", "clone", "--quiet", "--depth=1", RFID_REPO_URL, str(RFID_CACHE_DIR)],
+            check=True,
+        )
+
+
+def _decode_string(block_hex: str) -> str:
+    try:
+        return bytes.fromhex(block_hex).rstrip(b"\0").decode("ascii").strip()
+    except (ValueError, UnicodeDecodeError):
+        return ""
+
+
+def _u16_le(block: bytes, offset: int) -> int:
+    if len(block) < offset + 2:
+        return 0
+    return int.from_bytes(block[offset:offset + 2], "little")
+
+
+def parse_rfid_dumps() -> list[dict]:
+    """Parse all RFID tag dumps.
+
+    Block layout (per Bambu-Lab-RFID-Tag-Guide):
+      Block 1: [0:8]=variant_id (MQTT tray_id_name)
+      Block 2: material (e.g. "PLA")
+      Block 4: product (e.g. "PLA Basic") — MQTT tray_sub_brands
+      Block 5: [0:4]=color RRGGBBAA, [4:6]=weight u16
+      Block 6: [8:10]=temp_max, [10:12]=temp_min (u16 LE nozzle temps)
+      Block 16: [0:2]=format, [2:4]=color_count, [4:8]=second color (ABGR reversed)
+    """
+    fetch_rfid_repo()
+
+    by_variant: dict[str, dict] = {}
+
+    for dump_path in sorted(RFID_CACHE_DIR.rglob("hf-mf-*-dump.json")):
+        try:
+            data = json.loads(dump_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+
+        blocks = data.get("blocks", {})
+        b1_hex = blocks.get("1", "")
+        b4_hex = blocks.get("4", "")
+        b5_hex = blocks.get("5", "")
+        if len(b1_hex) < 32 or len(b4_hex) < 32 or len(b5_hex) < 32:
+            continue
+
+        variant_id = _decode_string(b1_hex[:16])
+        material = _decode_string(blocks.get("2", ""))
+        product = _decode_string(b4_hex)
+        if not variant_id or not product:
+            continue
+
+        try:
+            b5 = bytes.fromhex(b5_hex)
+            b6 = bytes.fromhex(blocks.get("6", ""))
+            b16 = bytes.fromhex(blocks.get("16", ""))
+        except ValueError:
+            continue
+
+        color_hex = b5[:4].hex().upper() if len(b5) >= 4 else None
+        weight = _u16_le(b5, 4) or None
+        temp_max = _u16_le(b6, 8) or None
+        temp_min = _u16_le(b6, 10) or None
+
+        color_hexes: list[str] = []
+        if color_hex:
+            color_hexes.append(color_hex)
+        if len(b16) >= 8:
+            fmt = _u16_le(b16, 0)
+            count = _u16_le(b16, 2)
+            if fmt == 2 and count >= 2:
+                # Second color bytes are ABGR-reversed; reverse to get RGBA
+                second = b16[4:8][::-1].hex().upper()
+                if second != "00000000":
+                    color_hexes.append(second)
+
+        # Folder hint for SpoolmanDB color-name matching: <product>/<color>/<tagUID>/<file>
+        color_hint = dump_path.parts[-3] if len(dump_path.parts) >= 3 else ""
+
+        by_variant.setdefault(variant_id, {
+            "id": variant_id,
+            "material": material or None,
+            "product": product,
+            "color_hex": color_hex,
+            "color_hexes": color_hexes,
+            "weight": weight,
+            "temp_min": temp_min,
+            "temp_max": temp_max,
+            "_color_hint": color_hint,
+        })
+
+    return list(by_variant.values())
+
+
 def parse_spoolman(filaments: list[dict]) -> dict[str, list[dict]]:
     """Build index: material -> [bambulab entries]."""
     index: dict[str, list[dict]] = {}
@@ -134,16 +242,21 @@ def parse_spoolman(filaments: list[dict]) -> dict[str, list[dict]]:
 
 
 def parse_bambu_colors(data: dict) -> dict[str, dict]:
-    """Build index: filament_code -> {name, color_hex}."""
+    """Build index: filament_code -> {name, cols: list of 8-char RRGGBBAA}."""
     index = {}
     for e in data.get("data", []):
         code = e.get("fila_color_code", "")
         name = e.get("fila_color_name", {}).get("en", "")
         if not code or not name:
             continue
-        colors = e.get("fila_color", [])
-        color_hex = colors[0][1:7] if colors and len(colors[0]) >= 7 else None
-        index[code] = {"name": name, "color_hex": color_hex}
+        cols = []
+        for c in e.get("fila_color", []):
+            h = c.lstrip("#").upper()
+            if len(h) == 6:
+                h += "FF"
+            if len(h) == 8:
+                cols.append(h)
+        index[code] = {"name": name, "cols": cols}
     return index
 
 
@@ -214,12 +327,12 @@ def find_spoolman_match(
         if base == target or normalize(base) == norm:
             return _found(c)
 
-    # Hex match (last resort, only within same material)
+    # Hex match (last resort, only within same material). Compare RGB only — SpoolmanDB mixes 6 and 8-char.
     if bambu_hex:
-        bambu_hex_norm = bambu_hex.lower()
+        bambu_rgb = bambu_hex.lower()[:6]
         for c in candidates:
-            c_hex = (c.get("color_hex") or "").lower()
-            if c_hex and c_hex == bambu_hex_norm:
+            c_rgb = (c.get("color_hex") or "").lower()[:6]
+            if c_rgb and c_rgb == bambu_rgb:
                 return _found(c)
 
     return None, None, None
@@ -237,111 +350,201 @@ def load_manual_additions() -> list[dict]:
         return []
 
 
+def _normalize_color_hex(raw: str | None) -> str | None:
+    """Accept 6 or 8-char hex (with or without #), return 8-char uppercase RRGGBBAA."""
+    if not raw:
+        return None
+    h = raw.lstrip("#").upper()
+    if len(h) == 6:
+        h += "FF"
+    return h if len(h) == 8 else None
+
+
+def _lookup_bambu_by_hex(
+    color_hex: str | None,
+    product: str,
+    bambu_by_hex: dict,
+    product_prefixes: dict,
+) -> tuple[str | None, dict | None]:
+    """Look up a BambuStudio entry by color hex, disambiguated by known product prefixes."""
+    if not color_hex:
+        return None, None
+    candidates = bambu_by_hex.get(color_hex, [])
+    prefixes = product_prefixes.get(product, set())
+    filtered = [c for c in candidates if c[0][:2] in prefixes] if prefixes else []
+    picked = filtered[0] if filtered else (candidates[0] if candidates else None)
+    return picked if picked else (None, None)
+
+
 def main():
-    print("Downloading sources...")
-    rfid_entries = parse_rfid_readme(download(RFID_URL))
+    print("Fetching sources...")
+    dump_entries = parse_rfid_dumps()
+    readme_entries = parse_rfid_readme(download(RFID_README_URL))
     spoolman = parse_spoolman(json.loads(download(SPOOLMAN_URL)))
     bambu_names = parse_bambu_colors(json.loads(download(BAMBU_COLORS_URL)))
     manual = load_manual_additions()
 
+    # README: variant -> list of SKUs (re-released variants keep all)
+    skus_by_variant: dict[str, list[str]] = {}
+    for e in readme_entries:
+        skus_by_variant.setdefault(e["variant_id"], []).append(e["code"])
+
+    # Product -> known BambuStudio SKU prefixes (disambiguates shared hexes like 000000)
+    product_prefixes: dict[str, set[str]] = {}
+    for e in readme_entries:
+        if e.get("code") and e.get("section"):
+            product_prefixes.setdefault(e["section"], set()).add(e["code"][:2])
+
+    # BambuStudio RRGGBBAA -> [(sku, info), ...]
+    bambu_by_hex: dict[str, list[tuple[str, dict]]] = {}
+    for sku, info in bambu_names.items():
+        for hex8 in info.get("cols", []):
+            bambu_by_hex.setdefault(hex8, []).append((sku, info))
+
+    # Merge: dump entries primary; add README-only variants as stubs
+    dump_ids = {e["id"] for e in dump_entries}
+    entries = list(dump_entries)
+    for e in readme_entries:
+        if e["variant_id"] not in dump_ids:
+            entries.append({
+                "id": e["variant_id"],
+                "material": None,
+                "product": e["section"],
+                "color_hex": None,
+                "color_hexes": [],
+                "weight": None,
+                "temp_min": None,
+                "temp_max": None,
+                "_color_hint": e["color"],
+            })
+
     spoolman_count = sum(len(v) for v in spoolman.values())
-    print(f"\nParsed {len(rfid_entries)} RFID entries, "
+    print(f"\nParsed {len(dump_entries)} RFID dumps, "
+          f"{len(readme_entries)} README entries, "
           f"{spoolman_count} SpoolmanDB entries, "
           f"{len(bambu_names)} BambuStudio colors, "
           f"{len(manual)} manual additions")
 
-    # Track unknown sections
-    unknown_sections = {e["section"] for e in rfid_entries if e["section"] not in MATERIAL_MAP}
+    unknown_products = {e["product"] for e in entries if e["product"] not in MATERIAL_MAP}
 
-    # Match and build results
     results = []
     seen = set()
     hex_mismatches = []
 
-    for entry in rfid_entries:
-        if entry["variant_id"] in seen:
+    for entry in entries:
+        vid = entry["id"]
+        if vid in seen:
             continue
-        seen.add(entry["variant_id"])
+        seen.add(vid)
 
-        bambu_info = bambu_names.get(entry["code"])
-        bambu_hex = bambu_info["color_hex"] if bambu_info else None
+        color_hex = entry.get("color_hex")
+        product = entry["product"]
 
+        # Look up Bambu SKU: prefer the README SKU whose BambuStudio hex matches the tag color
+        sku = None
+        bambu_info = None
+        readme_skus = skus_by_variant.get(vid, [])
+        if color_hex:
+            for c in readme_skus:
+                info = bambu_names.get(c)
+                if info and color_hex in info.get("cols", []):
+                    sku, bambu_info = c, info
+                    break
+        if bambu_info is None:
+            for c in readme_skus:
+                info = bambu_names.get(c)
+                if info:
+                    sku, bambu_info = c, info
+                    break
+        if bambu_info is None and color_hex:
+            sku, bambu_info = _lookup_bambu_by_hex(color_hex, product, bambu_by_hex, product_prefixes)
+        if sku is None and readme_skus:
+            sku = readme_skus[0]
+
+        bambu_cols = bambu_info.get("cols", []) if bambu_info else []
+
+        color_hint = entry.get("_color_hint") or ""
+        rgb = color_hex or (bambu_cols[0] if bambu_cols else None)
         spoolman_id, spoolman_name, spoolman_hex = find_spoolman_match(
-            entry["section"], entry["color"], spoolman, bambu_hex
+            product, color_hint, spoolman, rgb
         )
 
-        # Name priority: BambuStudio official > SpoolmanDB > constructed
         color_name = (
             (bambu_info["name"] if bambu_info else None)
             or spoolman_name
-            or build_display_name(entry["section"], entry["color"])
+            or build_display_name(product, color_hint)
         )
 
-        # Hex priority: BambuStudio official > SpoolmanDB
-        color_hex = bambu_hex or spoolman_hex
+        # Backfill color from BambuStudio when the tag didn't provide it
+        if not color_hex and bambu_cols:
+            color_hex = bambu_cols[0]
+        color_hexes = entry.get("color_hexes") or bambu_cols
 
-        # Consistency check: warn if matched entry has a different hex
-        if spoolman_id and bambu_hex and spoolman_hex and bambu_hex.lower() != spoolman_hex.lower():
-            hex_mismatches.append((entry["variant_id"], color_name, bambu_hex, spoolman_hex, spoolman_id))
+        if spoolman_id and rgb and spoolman_hex and rgb.lower()[:6] != spoolman_hex.lower()[:6]:
+            hex_mismatches.append((vid, color_name, rgb, spoolman_hex, spoolman_id))
 
-        result = {
-            "id": entry["variant_id"],
-            "code": entry["code"],
-            "material": entry["section"],
+        results.append({
+            "id": vid,
+            "sku": sku,
+            "material": entry.get("material"),
+            "product": product,
             "color_name": color_name,
-        }
-        if color_hex:
-            result["color_hex"] = color_hex
-        result["integrations"] = {"spoolman": spoolman_id}
-        results.append(result)
+            "color_hex": color_hex,
+            "color_hexes": color_hexes,
+            "weight": entry.get("weight"),
+            "temp_min": entry.get("temp_min"),
+            "temp_max": entry.get("temp_max"),
+            "integrations": {"spoolman": spoolman_id},
+        })
 
-    # Manual additions: enrich code/name from BambuStudio by hex when missing,
-    # then run SpoolmanDB matching
-    bambu_by_hex = {
-        (info["color_hex"] or "").upper(): (code, info)
-        for code, info in bambu_names.items()
-        if info.get("color_hex")
-    }
+    # Manual additions: same shape, fill in from BambuStudio where possible
     for m in manual:
-        if m["id"] in seen:
+        vid = m["id"]
+        if vid in seen:
             continue
-        seen.add(m["id"])
+        seen.add(vid)
 
-        color_hex = m.get("color_hex")
-        code = m.get("code")
+        product = m["product"]
+        color_hex = _normalize_color_hex(m.get("color_hex"))
+        sku = m.get("sku")
         color_name = m.get("color_name")
 
-        if color_hex and (not code or not color_name):
-            found = bambu_by_hex.get(color_hex.upper())
-            if found:
-                bambu_code, bambu_info = found
-                code = code or bambu_code
-                color_name = color_name or bambu_info["name"]
+        bambu_info = None
+        if sku:
+            bambu_info = bambu_names.get(sku)
+        if bambu_info is None and color_hex:
+            sku2, bambu_info = _lookup_bambu_by_hex(color_hex, product, bambu_by_hex, product_prefixes)
+            sku = sku or sku2
+        if bambu_info:
+            color_name = color_name or bambu_info["name"]
+            if not color_hex and bambu_info.get("cols"):
+                color_hex = bambu_info["cols"][0]
+
+        color_hexes = m.get("color_hexes") or ([color_hex] if color_hex else [])
 
         spoolman_id = (m.get("integrations") or {}).get("spoolman")
         if spoolman_id is None:
-            spoolman_id, _, _ = find_spoolman_match(
-                m["material"], color_name or "", spoolman, color_hex
-            )
+            spoolman_id, _, _ = find_spoolman_match(product, color_name or "", spoolman, color_hex)
 
-        result = {
-            "id": m["id"],
-            "code": code,
-            "material": m["material"],
+        results.append({
+            "id": vid,
+            "sku": sku,
+            "material": m.get("material"),
+            "product": product,
             "color_name": color_name,
-        }
-        if color_hex:
-            result["color_hex"] = color_hex
-        result["integrations"] = {"spoolman": spoolman_id}
-        results.append(result)
+            "color_hex": color_hex,
+            "color_hexes": color_hexes,
+            "weight": m.get("weight"),
+            "temp_min": m.get("temp_min"),
+            "temp_max": m.get("temp_max"),
+            "integrations": {"spoolman": spoolman_id},
+        })
 
-    # Write output
     results.sort(key=lambda x: x["id"])
     with open("filaments.json", "w") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
         f.write("\n")
 
-    # Stats
     matched = [r for r in results if r["integrations"]["spoolman"]]
     unmatched = [r for r in results if not r["integrations"]["spoolman"]]
 
@@ -349,24 +552,24 @@ def main():
     print(f"Total: {len(results)} | Matched: {len(matched)} | Unmatched: {len(unmatched)}")
     print(f"{'=' * 50}")
 
-    if unknown_sections:
-        print(f"\nUnknown RFID sections (not in MATERIAL_MAP):")
-        for s in sorted(unknown_sections):
+    if unknown_products:
+        print(f"\nUnknown products (not in MATERIAL_MAP):")
+        for s in sorted(unknown_products):
             print(f"  - {s}")
 
     if hex_mismatches:
-        print("\nHex mismatches (BambuStudio vs SpoolmanDB):")
+        print("\nHex mismatches (tag/bambu vs SpoolmanDB):")
         for vid, name, bhex, shex, sid in hex_mismatches:
-            print(f"  {vid} {name}: bambu=#{bhex} spoolman=#{shex} ({sid})")
+            print(f"  {vid} {name}: tag=#{bhex} spoolman=#{shex} ({sid})")
 
     if unmatched:
         print(f"\nUnmatched entries:")
-        by_mat: dict[str, list] = {}
+        by_prod: dict[str, list] = {}
         for r in unmatched:
-            by_mat.setdefault(r["material"], []).append(r)
-        for mat in sorted(by_mat):
-            names = ", ".join(f'{r["color_name"]} ({r["id"]})' for r in by_mat[mat])
-            print(f"  {mat}: {names}")
+            by_prod.setdefault(r["product"], []).append(r)
+        for prod in sorted(by_prod):
+            names = ", ".join(f'{r["color_name"]} ({r["id"]})' for r in by_prod[prod])
+            print(f"  {prod}: {names}")
 
     print(f"\nWrote filaments.json")
 
