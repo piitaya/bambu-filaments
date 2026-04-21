@@ -8,6 +8,7 @@ import urllib.request
 RFID_URL = "https://raw.githubusercontent.com/queengooborg/Bambu-Lab-RFID-Library/main/README.md"
 SPOOLMAN_URL = "https://donkie.github.io/SpoolmanDB/filaments.json"
 BAMBU_COLORS_URL = "https://raw.githubusercontent.com/bambulab/BambuStudio/master/resources/profiles/BBL/filament/filaments_color_codes.json"
+MANUAL_ADDITIONS_FILE = "manual_additions.json"
 
 # Map RFID section -> (spoolmandb_material, name_prefix, name_suffix)
 # None = no SpoolmanDB equivalent
@@ -227,16 +228,27 @@ def find_spoolman_match(
 # --- Main ---
 
 
+def load_manual_additions() -> list[dict]:
+    """Load locally-curated entries for filaments not yet in the upstream RFID library."""
+    try:
+        with open(MANUAL_ADDITIONS_FILE) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return []
+
+
 def main():
     print("Downloading sources...")
     rfid_entries = parse_rfid_readme(download(RFID_URL))
     spoolman = parse_spoolman(json.loads(download(SPOOLMAN_URL)))
     bambu_names = parse_bambu_colors(json.loads(download(BAMBU_COLORS_URL)))
+    manual = load_manual_additions()
 
     spoolman_count = sum(len(v) for v in spoolman.values())
     print(f"\nParsed {len(rfid_entries)} RFID entries, "
           f"{spoolman_count} SpoolmanDB entries, "
-          f"{len(bambu_names)} BambuStudio colors")
+          f"{len(bambu_names)} BambuStudio colors, "
+          f"{len(manual)} manual additions")
 
     # Track unknown sections
     unknown_sections = {e["section"] for e in rfid_entries if e["section"] not in MATERIAL_MAP}
@@ -276,6 +288,46 @@ def main():
             "id": entry["variant_id"],
             "code": entry["code"],
             "material": entry["section"],
+            "color_name": color_name,
+        }
+        if color_hex:
+            result["color_hex"] = color_hex
+        result["integrations"] = {"spoolman": spoolman_id}
+        results.append(result)
+
+    # Manual additions: enrich code/name from BambuStudio by hex when missing,
+    # then run SpoolmanDB matching
+    bambu_by_hex = {
+        (info["color_hex"] or "").upper(): (code, info)
+        for code, info in bambu_names.items()
+        if info.get("color_hex")
+    }
+    for m in manual:
+        if m["id"] in seen:
+            continue
+        seen.add(m["id"])
+
+        color_hex = m.get("color_hex")
+        code = m.get("code")
+        color_name = m.get("color_name")
+
+        if color_hex and (not code or not color_name):
+            found = bambu_by_hex.get(color_hex.upper())
+            if found:
+                bambu_code, bambu_info = found
+                code = code or bambu_code
+                color_name = color_name or bambu_info["name"]
+
+        spoolman_id = (m.get("integrations") or {}).get("spoolman")
+        if spoolman_id is None:
+            spoolman_id, _, _ = find_spoolman_match(
+                m["material"], color_name or "", spoolman, color_hex
+            )
+
+        result = {
+            "id": m["id"],
+            "code": code,
+            "material": m["material"],
             "color_name": color_name,
         }
         if color_hex:

@@ -47,6 +47,31 @@ Python 3.10+, no external dependencies.
 
 The script downloads three sources, cross-references them, and outputs `filaments.json`.
 
+## Adding a missing filament
+
+If a variant ID isn't in the upstream RFID library yet, add it to [`manual_additions.json`](manual_additions.json):
+
+```json
+[
+  {
+    "id": "A00-B9",
+    "material": "PLA Basic",
+    "color_hex": "0A2989"
+  }
+]
+```
+
+| Field | Required | Description |
+| ----- | -------- | ----------- |
+| `id` | yes | Variant ID from the RFID tag |
+| `material` | yes | Material section (e.g. `PLA Basic`, `PETG HF`) |
+| `color_hex` | yes | 6-digit hex color (no `#`) |
+| `code` | no | Bambu 5-digit product code. Auto-derived from BambuStudio by hex if available |
+| `color_name` | no | Official color name. Auto-derived from BambuStudio by hex if available |
+| `integrations.spoolman` | no | SpoolmanDB filament ID. Auto-matched by name + hex if absent |
+
+Provide optional fields explicitly to override the auto-lookups (useful when the hex isn't in BambuStudio, or when SpoolmanDB matching picks the wrong entry). If upstream later adds the same variant ID, the upstream entry wins — you can then drop the manual entry.
+
 ## Data sources
 
 | Source | What it provides |

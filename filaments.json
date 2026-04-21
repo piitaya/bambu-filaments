@@ -60,6 +60,16 @@
     }
   },
   {
+    "id": "A00-B9",
+    "code": "10601",
+    "material": "PLA Basic",
+    "color_name": "Blue",
+    "color_hex": "0A2989",
+    "integrations": {
+      "spoolman": "bambulab_pla_blue_1000_175_n"
+    }
+  },
+  {
     "id": "A00-D0",
     "code": "10103",
     "material": "PLA Basic",
