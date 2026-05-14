@@ -69,7 +69,7 @@ RE_VARIANT_ID = re.compile(r"[A-Z]\d+-\w+")
 RE_SLASH_ID = re.compile(r"([A-Z]\d+-)(\w+)/(\w+)")
 
 
-# --- Download ---
+# --- Helpers ---
 
 
 def download(url: str) -> str:
@@ -77,6 +77,40 @@ def download(url: str) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": "bambu-spoolman-db/1.0"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         return resp.read().decode("utf-8")
+
+
+def normalize_hex(raw: str | None) -> str | None:
+    """Accept 6 or 8-char hex (with or without #), return 8-char uppercase RRGGBBAA."""
+    if not raw:
+        return None
+    h = raw.lstrip("#").upper()
+    if len(h) == 6:
+        h += "FF"
+    return h if len(h) == 8 else None
+
+
+def normalize_hexes(raw_list) -> list[str]:
+    """Normalize a list of hex strings, dropping any that don't parse."""
+    return [h for h in (normalize_hex(c) for c in (raw_list or [])) if h]
+
+
+def normalize_name(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+def swap_grey_gray(name: str) -> str:
+    if "Grey" in name:
+        return name.replace("Grey", "Gray")
+    if "Gray" in name:
+        return name.replace("Gray", "Grey")
+    return name
+
+
+def infer_material(product: str | None) -> str | None:
+    """Derive broad material (e.g. 'PLA') from product (e.g. 'PLA Aero', 'PLA-CF')."""
+    if not product:
+        return None
+    return product.split(" ")[0].split("-")[0] or None
 
 
 # --- Parsing ---
@@ -241,38 +275,53 @@ def parse_spoolman(filaments: list[dict]) -> dict[str, list[dict]]:
     return index
 
 
-def parse_bambu_colors(data: dict) -> dict[str, dict]:
-    """Build index: filament_code -> {name, cols: list of 8-char RRGGBBAA}."""
-    index = {}
+def parse_bambu(data: dict) -> tuple[dict[str, dict], list[dict]]:
+    """Parse BambuStudio's filaments_color_codes.json.
+
+    Returns (by_sku, derived_entries):
+      - by_sku: {fila_color_code -> {name, cols}} for SKU enrichment lookups.
+      - derived_entries: variant entries derived from `fila_id` + `color_code`.
+        BambuStudio 2.7+ publishes the variant ID suffix as `color_code`, with
+        the prefix in `fila_id` (e.g. "GFA00" -> "A00"), giving variant IDs for
+        products that haven't been RFID-dumped yet.
+    """
+    by_sku: dict[str, dict] = {}
+    derived: list[dict] = []
     for e in data.get("data", []):
-        code = e.get("fila_color_code", "")
+        sku = e.get("fila_color_code", "")
         name = e.get("fila_color_name", {}).get("en", "")
-        if not code or not name:
+        cols = normalize_hexes(e.get("fila_color", []))
+        if sku and name:
+            by_sku[sku] = {"name": name, "cols": cols}
+
+        fila_id = e.get("fila_id", "")
+        color_code = e.get("color_code")
+        if not fila_id.startswith("GF") or not color_code:
             continue
-        cols = []
-        for c in e.get("fila_color", []):
-            h = c.lstrip("#").upper()
-            if len(h) == 6:
-                h += "FF"
-            if len(h) == 8:
-                cols.append(h)
-        index[code] = {"name": name, "cols": cols}
-    return index
+        prefix = fila_id[2:]
+        if not prefix:
+            continue
+        derived.append({
+            "id": f"{prefix}-{color_code}",
+            "sku": sku or None,
+            "product": e.get("fila_type", ""),
+            "color_name": name,
+            "color_hex": cols[0] if cols else None,
+            "color_hexes": cols,
+        })
+    return by_sku, derived
+
+
+def load_manual_additions() -> list[dict]:
+    """Load locally-curated entries for filaments not yet in the upstream sources."""
+    try:
+        with open(MANUAL_ADDITIONS_FILE) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return []
 
 
 # --- Matching ---
-
-
-def normalize(name: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", name.lower())
-
-
-def swap_grey_gray(name: str) -> str:
-    if "Grey" in name:
-        return name.replace("Grey", "Gray")
-    if "Gray" in name:
-        return name.replace("Gray", "Grey")
-    return name
 
 
 def build_display_name(section: str, color: str) -> str:
@@ -299,7 +348,7 @@ def find_spoolman_match(
         return None, None, None
 
     target = build_display_name(section, color)
-    norm = normalize(target)
+    norm = normalize_name(target)
 
     def _found(c):
         return c["id"], c["name"], c.get("color_hex")
@@ -311,20 +360,20 @@ def find_spoolman_match(
 
     # Normalized
     for c in candidates:
-        if normalize(c["name"]) == norm:
+        if normalize_name(c["name"]) == norm:
             return _found(c)
 
     # Grey<->Gray
     swapped = swap_grey_gray(target)
     if swapped != target:
         for c in candidates:
-            if c["name"] == swapped or normalize(c["name"]) == normalize(swapped):
+            if c["name"] == swapped or normalize_name(c["name"]) == normalize_name(swapped):
                 return _found(c)
 
     # Partial (strip parenthesized parts for multi-color names)
     for c in candidates:
         base = re.sub(r"\s*\([^)]*\)", "", c["name"])
-        if base == target or normalize(base) == norm:
+        if base == target or normalize_name(base) == norm:
             return _found(c)
 
     # Hex match (last resort, only within same material). Compare RGB only — SpoolmanDB mixes 6 and 8-char.
@@ -338,36 +387,7 @@ def find_spoolman_match(
     return None, None, None
 
 
-# --- Main ---
-
-
-def load_manual_additions() -> list[dict]:
-    """Load locally-curated entries for filaments not yet in the upstream RFID library."""
-    try:
-        with open(MANUAL_ADDITIONS_FILE) as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return []
-
-
-def _normalize_color_hex(raw: str | None) -> str | None:
-    """Accept 6 or 8-char hex (with or without #), return 8-char uppercase RRGGBBAA."""
-    if not raw:
-        return None
-    h = raw.lstrip("#").upper()
-    if len(h) == 6:
-        h += "FF"
-    return h if len(h) == 8 else None
-
-
-def _infer_material(product: str | None) -> str | None:
-    """Derive broad material (e.g. 'PLA') from product (e.g. 'PLA Aero', 'PLA-CF')."""
-    if not product:
-        return None
-    return product.split(" ")[0].split("-")[0] or None
-
-
-def _lookup_bambu_by_hex(
+def lookup_bambu_by_hex(
     color_hex: str | None,
     product: str,
     bambu_by_hex: dict,
@@ -383,22 +403,151 @@ def _lookup_bambu_by_hex(
     return picked if picked else (None, None)
 
 
+def resolve_sku(
+    vid: str,
+    color_hex: str | None,
+    product: str,
+    hint_sku: str | None,
+    skus_by_variant: dict,
+    bambu_names: dict,
+    bambu_by_hex: dict,
+    product_prefixes: dict,
+) -> tuple[str | None, dict | None]:
+    """Resolve a variant to its BambuStudio SKU and metadata.
+
+    Tries in order: explicit hint -> README SKU with matching hex -> first README SKU
+    -> hex-based lookup. The first source to yield a `bambu_names` hit wins.
+    """
+    if hint_sku and (info := bambu_names.get(hint_sku)):
+        return hint_sku, info
+
+    readme_skus = skus_by_variant.get(vid, [])
+    if color_hex:
+        for c in readme_skus:
+            info = bambu_names.get(c)
+            if info and color_hex in info.get("cols", []):
+                return c, info
+    for c in readme_skus:
+        if info := bambu_names.get(c):
+            return c, info
+    if color_hex:
+        sku, info = lookup_bambu_by_hex(color_hex, product, bambu_by_hex, product_prefixes)
+        if info:
+            return sku, info
+    return (readme_skus[0] if readme_skus else hint_sku), None
+
+
+# --- Enumeration ---
+
+
+def _stub(**fields) -> dict:
+    """Build an entry stub with default null physical specs."""
+    return {
+        "weight": None, "temp_min": None, "temp_max": None,
+        "color_hex": None, "color_hexes": [],
+        **fields,
+    }
+
+
+def enumerate_entries(
+    dump_entries: list[dict],
+    readme_entries: list[dict],
+    bambu_derived: list[dict],
+    manual: list[dict],
+    product_to_material: dict[str, str],
+) -> list[dict]:
+    """Merge all sources in priority order: dumps > README > BambuStudio > manual.
+
+    Earlier sources win: dumps have physical specs, READMEs are human-curated,
+    BambuStudio's fila_id sometimes misclassifies SKUs.
+    """
+    entries = list(dump_entries)
+    seen = {e["id"] for e in dump_entries}
+
+    def add(vid, stub):
+        if vid in seen:
+            return
+        seen.add(vid)
+        entries.append(stub)
+
+    for e in readme_entries:
+        add(e["variant_id"], _stub(
+            id=e["variant_id"],
+            material=product_to_material.get(e["section"]),
+            product=e["section"],
+            _color_hint=e["color"],
+        ))
+
+    for e in bambu_derived:
+        add(e["id"], _stub(
+            id=e["id"],
+            material=product_to_material.get(e["product"]),
+            product=e["product"],
+            color_hex=e["color_hex"],
+            color_hexes=e["color_hexes"],
+            _color_hint=e["color_name"],
+            _bambu_sku=e["sku"],
+        ))
+
+    for m in manual:
+        color_hex = normalize_hex(m.get("color_hex"))
+        color_hexes = normalize_hexes(m.get("color_hexes")) or ([color_hex] if color_hex else [])
+        add(m["id"], _stub(
+            id=m["id"],
+            material=m.get("material") or product_to_material.get(m["product"]),
+            product=m["product"],
+            color_hex=color_hex,
+            color_hexes=color_hexes,
+            weight=m.get("weight"),
+            temp_min=m.get("temp_min"),
+            temp_max=m.get("temp_max"),
+            _color_hint=m.get("color_name") or "",
+            _bambu_sku=m.get("sku"),
+            _manual_color_name=m.get("color_name"),
+            _manual_spoolman=(m.get("integrations") or {}).get("spoolman"),
+        ))
+
+    return entries
+
+
+def backfill_specs(results: list[dict]) -> None:
+    """Fill missing weight/temp values from sibling variants (same product + ID prefix).
+
+    Pooled from variants that have known specs so README-only or Bambu-derived
+    stubs inherit physical specs from their family.
+    """
+    pool: dict[tuple[str, str], dict] = {}
+    for r in results:
+        prefix = r["id"].split("-", 1)[0]
+        bucket = pool.setdefault((r["product"], prefix), {})
+        for field in ("weight", "temp_min", "temp_max"):
+            if bucket.get(field) is None and r.get(field) is not None:
+                bucket[field] = r[field]
+    for r in results:
+        prefix = r["id"].split("-", 1)[0]
+        bucket = pool.get((r["product"], prefix), {})
+        for field in ("weight", "temp_min", "temp_max"):
+            if r.get(field) is None and bucket.get(field) is not None:
+                r[field] = bucket[field]
+
+
+# --- Main ---
+
+
 def main():
     print("Fetching sources...")
     dump_entries = parse_rfid_dumps()
     readme_entries = parse_rfid_readme(download(RFID_README_URL))
     spoolman = parse_spoolman(json.loads(download(SPOOLMAN_URL)))
-    bambu_names = parse_bambu_colors(json.loads(download(BAMBU_COLORS_URL)))
+    bambu_names, bambu_derived = parse_bambu(json.loads(download(BAMBU_COLORS_URL)))
     manual = load_manual_additions()
 
     # README: variant -> list of SKUs (re-released variants keep all)
     skus_by_variant: dict[str, list[str]] = {}
-    for e in readme_entries:
-        skus_by_variant.setdefault(e["variant_id"], []).append(e["code"])
-
     # Product -> known BambuStudio SKU prefixes (disambiguates shared hexes like 000000)
     product_prefixes: dict[str, set[str]] = {}
     for e in readme_entries:
+        skus_by_variant.setdefault(e["variant_id"], []).append(e["code"])
         if e.get("code") and e.get("section"):
             product_prefixes.setdefault(e["section"], set()).add(e["code"][:2])
 
@@ -408,29 +557,16 @@ def main():
         for hex8 in info.get("cols", []):
             bambu_by_hex.setdefault(hex8, []).append((sku, info))
 
-    # Product -> block 2 material, built from tag dumps. Used to fill README-only stubs
-    # so e.g. an ABS-GF variant without a dump still gets material="ABS-GF" instead of "ABS".
+    # Product -> block 2 material, built from tag dumps. Used to fill stubs so
+    # e.g. an ABS-GF variant without a dump still gets material="ABS-GF" instead of "ABS".
     product_to_material: dict[str, str] = {}
     for e in dump_entries:
         if e.get("product") and e.get("material"):
             product_to_material.setdefault(e["product"], e["material"])
 
-    # Merge: dump entries primary; add README-only variants as stubs
-    dump_ids = {e["id"] for e in dump_entries}
-    entries = list(dump_entries)
-    for e in readme_entries:
-        if e["variant_id"] not in dump_ids:
-            entries.append({
-                "id": e["variant_id"],
-                "material": product_to_material.get(e["section"]),
-                "product": e["section"],
-                "color_hex": None,
-                "color_hexes": [],
-                "weight": None,
-                "temp_min": None,
-                "temp_max": None,
-                "_color_hint": e["color"],
-            })
+    entries = enumerate_entries(
+        dump_entries, readme_entries, bambu_derived, manual, product_to_material
+    )
 
     spoolman_count = sum(len(v) for v in spoolman.values())
     print(f"\nParsed {len(dump_entries)} RFID dumps, "
@@ -442,49 +578,33 @@ def main():
     unknown_products = {e["product"] for e in entries if e["product"] not in MATERIAL_MAP}
 
     results = []
-    seen = set()
     hex_mismatches = []
 
     for entry in entries:
         vid = entry["id"]
-        if vid in seen:
-            continue
-        seen.add(vid)
-
         color_hex = entry.get("color_hex")
         product = entry["product"]
 
-        # Look up Bambu SKU: prefer the README SKU whose BambuStudio hex matches the tag color
-        sku = None
-        bambu_info = None
-        readme_skus = skus_by_variant.get(vid, [])
-        if color_hex:
-            for c in readme_skus:
-                info = bambu_names.get(c)
-                if info and color_hex in info.get("cols", []):
-                    sku, bambu_info = c, info
-                    break
-        if bambu_info is None:
-            for c in readme_skus:
-                info = bambu_names.get(c)
-                if info:
-                    sku, bambu_info = c, info
-                    break
-        if bambu_info is None and color_hex:
-            sku, bambu_info = _lookup_bambu_by_hex(color_hex, product, bambu_by_hex, product_prefixes)
-        if sku is None and readme_skus:
-            sku = readme_skus[0]
-
+        sku, bambu_info = resolve_sku(
+            vid, color_hex, product, entry.get("_bambu_sku"),
+            skus_by_variant, bambu_names, bambu_by_hex, product_prefixes,
+        )
         bambu_cols = bambu_info.get("cols", []) if bambu_info else []
 
         color_hint = entry.get("_color_hint") or ""
         rgb = color_hex or (bambu_cols[0] if bambu_cols else None)
-        spoolman_id, spoolman_name, spoolman_hex = find_spoolman_match(
-            product, color_hint, spoolman, rgb
-        )
+
+        manual_spoolman = entry.get("_manual_spoolman")
+        if manual_spoolman is not None:
+            spoolman_id, spoolman_name, spoolman_hex = manual_spoolman, None, None
+        else:
+            spoolman_id, spoolman_name, spoolman_hex = find_spoolman_match(
+                product, color_hint, spoolman, rgb
+            )
 
         color_name = (
-            (bambu_info["name"] if bambu_info else None)
+            entry.get("_manual_color_name")
+            or (bambu_info["name"] if bambu_info else None)
             or spoolman_name
             or build_display_name(product, color_hint)
         )
@@ -500,7 +620,7 @@ def main():
         results.append({
             "id": vid,
             "sku": sku,
-            "material": entry.get("material") or _infer_material(product),
+            "material": entry.get("material") or infer_material(product),
             "product": product,
             "color_name": color_name,
             "color_hex": color_hex,
@@ -511,65 +631,7 @@ def main():
             "integrations": {"spoolman": spoolman_id},
         })
 
-    # Manual additions: same shape, fill in from BambuStudio where possible
-    for m in manual:
-        vid = m["id"]
-        if vid in seen:
-            continue
-        seen.add(vid)
-
-        product = m["product"]
-        color_hex = _normalize_color_hex(m.get("color_hex"))
-        sku = m.get("sku")
-        color_name = m.get("color_name")
-
-        bambu_info = None
-        if sku:
-            bambu_info = bambu_names.get(sku)
-        if bambu_info is None and color_hex:
-            sku2, bambu_info = _lookup_bambu_by_hex(color_hex, product, bambu_by_hex, product_prefixes)
-            sku = sku or sku2
-        if bambu_info:
-            color_name = color_name or bambu_info["name"]
-            if not color_hex and bambu_info.get("cols"):
-                color_hex = bambu_info["cols"][0]
-
-        color_hexes = m.get("color_hexes") or ([color_hex] if color_hex else [])
-
-        spoolman_id = (m.get("integrations") or {}).get("spoolman")
-        if spoolman_id is None:
-            spoolman_id, _, _ = find_spoolman_match(product, color_name or "", spoolman, color_hex)
-
-        results.append({
-            "id": vid,
-            "sku": sku,
-            "material": m.get("material") or product_to_material.get(product) or _infer_material(product),
-            "product": product,
-            "color_name": color_name,
-            "color_hex": color_hex,
-            "color_hexes": color_hexes,
-            "weight": m.get("weight"),
-            "temp_min": m.get("temp_min"),
-            "temp_max": m.get("temp_max"),
-            "integrations": {"spoolman": spoolman_id},
-        })
-
-    # Backfill weight / temp_min / temp_max from sibling variants (same product + ID prefix).
-    # Pooled from tagged entries so README-only stubs inherit physical specs.
-    pool: dict[tuple[str, str], dict] = {}
-    for r in results:
-        prefix = r["id"].split("-", 1)[0]
-        key = (r["product"], prefix)
-        bucket = pool.setdefault(key, {})
-        for field in ("weight", "temp_min", "temp_max"):
-            if bucket.get(field) is None and r.get(field) is not None:
-                bucket[field] = r[field]
-    for r in results:
-        prefix = r["id"].split("-", 1)[0]
-        bucket = pool.get((r["product"], prefix), {})
-        for field in ("weight", "temp_min", "temp_max"):
-            if r.get(field) is None and bucket.get(field) is not None:
-                r[field] = bucket[field]
+    backfill_specs(results)
 
     results.sort(key=lambda x: x["id"])
     with open("filaments.json", "w") as f:
