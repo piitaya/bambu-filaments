@@ -1625,6 +1625,23 @@
     }
   },
   {
+    "id": "A02-N03",
+    "sku": "13800",
+    "material": "PLA",
+    "product": "PLA Metal",
+    "color_name": "Copper Brown Metallic",
+    "color_hex": "AA6443FF",
+    "color_hexes": [
+      "AA6443FF"
+    ],
+    "weight": 1000,
+    "temp_min": 190,
+    "temp_max": 230,
+    "integrations": {
+      "spoolman": "bambulab_pla_copperbrownmetallic_1000_175_n"
+    }
+  },
+  {
     "id": "A02-N3",
     "sku": "13800",
     "material": "PLA",
@@ -2367,6 +2384,23 @@
     }
   },
   {
+    "id": "A06-Y01",
+    "sku": "13405",
+    "material": "PLA",
+    "product": "PLA Silk+",
+    "color_name": "Gold",
+    "color_hex": "F4A925FF",
+    "color_hexes": [
+      "F4A925FF"
+    ],
+    "weight": 1000,
+    "temp_min": 190,
+    "temp_max": 240,
+    "integrations": {
+      "spoolman": "bambulab_pla_silk+gold_1000_175_n"
+    }
+  },
+  {
     "id": "A06-Y1",
     "sku": "13405",
     "material": "PLA",
@@ -2381,6 +2415,23 @@
     "temp_max": 240,
     "integrations": {
       "spoolman": "bambulab_pla_silk+gold_1000_175_n"
+    }
+  },
+  {
+    "id": "A07-D04",
+    "sku": "13103",
+    "material": "PLA",
+    "product": "PLA Marble",
+    "color_name": "White Marble",
+    "color_hex": "F7F3F0FF",
+    "color_hexes": [
+      "F7F3F0FF"
+    ],
+    "weight": 1000,
+    "temp_min": 190,
+    "temp_max": 230,
+    "integrations": {
+      "spoolman": "bambulab_pla_whitemarble_1000_175_n"
     }
   },
   {
@@ -5573,8 +5624,8 @@
       "FFFFFFFF"
     ],
     "weight": 250,
-    "temp_min": 190,
-    "temp_max": 230,
+    "temp_min": 220,
+    "temp_max": 220,
     "integrations": {
       "spoolman": null
     }
