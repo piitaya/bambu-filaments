@@ -180,11 +180,16 @@
   .meta {
     margin-top: 8px;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    gap: 4px;
     font-size: 12px;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
+  }
+  .meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
   .meta .sku,
   .meta .id {
@@ -193,6 +198,16 @@
   }
   .meta .sku:hover,
   .meta .id:hover { color: var(--text); }
+  .meta .ids {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    align-items: center;
+  }
+  .meta .id-sep {
+    opacity: 0.4;
+    cursor: default;
+  }
   .meta a {
     color: var(--accent);
     text-decoration: none;
@@ -263,7 +278,29 @@
   const toast = document.getElementById('toast');
 
   const res = await fetch('filaments.json');
-  const data = await res.json();
+  const raw = await res.json();
+
+  // Group entries that share an SKU and product — same physical product with
+  // multiple variant ID encodings (e.g. A00-A0 / A00-A00 from old vs new RFID
+  // schemes). Splitting on product avoids merging unrelated entries that share
+  // a SKU due to upstream mapping quirks (e.g. PLA Basic Black and Support for
+  // PLA Black both list SKU 10101).
+  const data = (() => {
+    const groups = new Map();
+    const out = [];
+    for (const f of raw) {
+      const key = f.sku ? `sku:${f.sku}|${f.product || ''}` : null;
+      if (key && groups.has(key)) {
+        groups.get(key).ids.push(f.id);
+        continue;
+      }
+      const entry = { ...f, ids: [f.id] };
+      if (key) groups.set(key, entry);
+      out.push(entry);
+    }
+    for (const entry of out) entry.ids.sort();
+    return out;
+  })();
 
   const materials = [...new Set(data.map(f => f.material).filter(Boolean))].sort();
   let activeMaterial = null;
@@ -290,7 +327,7 @@
       if (activeProduct && f.product !== activeProduct) return false;
       if (!q) return true;
       return (
-        f.id.toLowerCase().includes(q) ||
+        f.ids.some(id => id.toLowerCase().includes(q)) ||
         (f.sku || '').toLowerCase().includes(q) ||
         (f.product || '').toLowerCase().includes(q) ||
         (f.color_name || '').toLowerCase().includes(q) ||
@@ -308,6 +345,10 @@
       const hexes = (f.color_hexes && f.color_hexes.length ? f.color_hexes : (f.color_hex ? [f.color_hex] : []))
         .map(h => h.endsWith('FF') ? '#' + h.slice(0, 6) : '#' + h);
 
+      const idsHtml = f.ids
+        .map(id => `<span class="id" title="Click to copy">${id}</span>`)
+        .join('<span class="id-sep">/</span>');
+
       card.innerHTML = `
         <div class="swatch" style="${swatchStyle(f.color_hexes || [f.color_hex])}">
           ${hexes.length ? `<div class="hex">${hexes.map(h => `<code title="Click to copy">${h}</code>`).join('')}</div>` : ''}
@@ -316,8 +357,10 @@
           <div class="name">${escape(f.color_name || '—')}</div>
           <div class="product">${escape(f.product || f.material || '')}</div>
           <div class="meta">
-            <span class="sku" title="Click to copy">${f.sku ? 'SKU ' + f.sku : ''}</span>
-            <span class="id" title="Click to copy">${f.id}</span>
+            <div class="meta-row">
+              <span class="sku" title="Click to copy">${f.sku ? 'SKU ' + f.sku : ''}</span>
+            </div>
+            <div class="ids">${idsHtml}</div>
           </div>
         </div>
       `;
@@ -328,10 +371,11 @@
           showToast(`Copied ${el.textContent}`);
         });
       });
-      const idEl = card.querySelector('.meta .id');
-      idEl.addEventListener('click', () => {
-        navigator.clipboard.writeText(f.id);
-        showToast(`Copied ${f.id}`);
+      card.querySelectorAll('.meta .id').forEach(el => {
+        el.addEventListener('click', () => {
+          navigator.clipboard.writeText(el.textContent);
+          showToast(`Copied ${el.textContent}`);
+        });
       });
       if (f.sku) {
         card.querySelector('.meta .sku').addEventListener('click', () => {
