@@ -626,7 +626,7 @@ def main():
 
         results.append({
             "id": vid,
-            "sku": sku,
+            "sku": sku or "",
             "material": entry.get("material") or infer_material(product),
             "product": product,
             "color_name": color_name,
