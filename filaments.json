@@ -34,24 +34,6 @@
     }
   },
   {
-    "id": "A00-A05",
-    "sku": "13901",
-    "material": "PLA",
-    "product": "PLA Silk Multi-Color",
-    "color_name": "Gilded Rose",
-    "color_hex": "FF9425FF",
-    "color_hexes": [
-      "FF9425FF",
-      "C16784FF"
-    ],
-    "weight": null,
-    "temp_min": null,
-    "temp_max": null,
-    "integrations": {
-      "spoolman": "bambulab_pla_gildedrose(pink-gold)_1000_175_n"
-    }
-  },
-  {
     "id": "A00-A1",
     "sku": "10301",
     "material": "PLA",
@@ -929,10 +911,10 @@
   },
   {
     "id": "A00-W1",
-    "sku": "10900",
+    "sku": "10100",
     "material": "PLA",
     "product": "PLA Basic",
-    "color_name": "Arctic Whisper",
+    "color_name": "Jade White",
     "color_hex": "FFFFFFFF",
     "color_hexes": [
       "FFFFFFFF"
@@ -1061,23 +1043,6 @@
     "temp_max": 230,
     "integrations": {
       "spoolman": "bambulab_pla_gold_1000_175_n"
-    }
-  },
-  {
-    "id": "A01-A01",
-    "sku": "11102",
-    "material": "PLA",
-    "product": "PLA Matte",
-    "color_name": "Ash Gray",
-    "color_hex": "9B9EA0FF",
-    "color_hexes": [
-      "9B9EA0FF"
-    ],
-    "weight": 1000,
-    "temp_min": 190,
-    "temp_max": 230,
-    "integrations": {
-      "spoolman": "bambulab_pla_matteashgray_1000_175_n"
     }
   },
   {
@@ -1676,24 +1641,6 @@
     }
   },
   {
-    "id": "A05-A05",
-    "sku": "13902",
-    "material": "PLA",
-    "product": "PLA Silk Multi-Color",
-    "color_name": "Midnight Blaze",
-    "color_hex": "0047BBFF",
-    "color_hexes": [
-      "0047BBFF",
-      "7D1B49FF"
-    ],
-    "weight": null,
-    "temp_min": null,
-    "temp_max": null,
-    "integrations": {
-      "spoolman": "bambulab_pla_midnightblaze(blue-red)_1000_175_n"
-    }
-  },
-  {
     "id": "A05-B0",
     "sku": "13601",
     "material": "PLA",
@@ -2010,23 +1957,6 @@
     }
   },
   {
-    "id": "A06-A06",
-    "sku": "13603",
-    "material": "PLA",
-    "product": "PLA Silk+",
-    "color_name": "Baby Blue",
-    "color_hex": "A8C6EEFF",
-    "color_hexes": [
-      "A8C6EEFF"
-    ],
-    "weight": 1000,
-    "temp_min": 190,
-    "temp_max": 240,
-    "integrations": {
-      "spoolman": "bambulab_pla_silk+babyblue_1000_175_n"
-    }
-  },
-  {
     "id": "A06-B0",
     "sku": "13603",
     "material": "PLA",
@@ -2113,10 +2043,10 @@
   },
   {
     "id": "A06-D00",
-    "sku": "13109",
+    "sku": "13108",
     "material": "PLA",
     "product": "PLA Silk+",
-    "color_name": "Silver",
+    "color_name": "Titan Gray",
     "color_hex": "5F6367FF",
     "color_hexes": [
       "5F6367FF"
@@ -2351,7 +2281,7 @@
   },
   {
     "id": "A06-W00",
-    "sku": "13105",
+    "sku": "13110",
     "material": "PLA",
     "product": "PLA Silk+",
     "color_name": "White",
@@ -2466,23 +2396,6 @@
     "temp_max": 230,
     "integrations": {
       "spoolman": "bambulab_pla_redgranite_1000_175_n"
-    }
-  },
-  {
-    "id": "A08-A08",
-    "sku": "13101",
-    "material": "PLA",
-    "product": "PLA Sparkle",
-    "color_name": "Onyx Black Sparkle",
-    "color_hex": "2D2B28FF",
-    "color_hexes": [
-      "2D2B28FF"
-    ],
-    "weight": 1000,
-    "temp_min": 190,
-    "temp_max": 230,
-    "integrations": {
-      "spoolman": "bambulab_pla_onyxblacksparkle_1000_175_n"
     }
   },
   {
@@ -3047,23 +2960,6 @@
     }
   },
   {
-    "id": "A15-A15",
-    "sku": "13504",
-    "material": "PLA",
-    "product": "PLA Galaxy",
-    "color_name": "Nebulae",
-    "color_hex": "424379FF",
-    "color_hexes": [
-      "424379FF"
-    ],
-    "weight": 1000,
-    "temp_min": 190,
-    "temp_max": 230,
-    "integrations": {
-      "spoolman": "bambulab_pla_nebulaegalaxy_1000_175_n"
-    }
-  },
-  {
     "id": "A15-B0",
     "sku": "13602",
     "material": "PLA",
@@ -3149,23 +3045,6 @@
     }
   },
   {
-    "id": "A16-A16",
-    "sku": "13107",
-    "material": "PLA",
-    "product": "PLA Wood",
-    "color_name": "Black Walnut",
-    "color_hex": "4F3F24FF",
-    "color_hexes": [
-      "4F3F24FF"
-    ],
-    "weight": 1000,
-    "temp_min": 190,
-    "temp_max": 230,
-    "integrations": {
-      "spoolman": "bambulab_pla+wood_blackwalnut_1000_175_n"
-    }
-  },
-  {
     "id": "A16-G0",
     "sku": "13505",
     "material": "PLA",
@@ -3218,10 +3097,10 @@
   },
   {
     "id": "A16-R0",
-    "sku": "13204",
+    "sku": "13107",
     "material": "PLA",
     "product": "PLA Wood",
-    "color_name": "Rosewood",
+    "color_name": "Black Walnut",
     "color_hex": "3F231CFF",
     "color_hexes": [
       "3F231CFF"
@@ -3897,23 +3776,6 @@
     }
   },
   {
-    "id": "B00-B00",
-    "sku": "40100",
-    "material": "ABS",
-    "product": "ABS",
-    "color_name": "White",
-    "color_hex": "FFFFFFFF",
-    "color_hexes": [
-      "FFFFFFFF"
-    ],
-    "weight": 1000,
-    "temp_min": 240,
-    "temp_max": 270,
-    "integrations": {
-      "spoolman": "bambulab_abs_white_1000_175_n"
-    }
-  },
-  {
     "id": "B00-B4",
     "sku": "40601",
     "material": "ABS",
@@ -4458,28 +4320,11 @@
     }
   },
   {
-    "id": "C00-C00",
+    "id": "C00-C1",
     "sku": "60102",
     "material": "PC",
     "product": "PC",
     "color_name": "Clear Black",
-    "color_hex": "68686580",
-    "color_hexes": [
-      "68686580"
-    ],
-    "weight": 1000,
-    "temp_min": 260,
-    "temp_max": 280,
-    "integrations": {
-      "spoolman": "bambulab_pc_clearblack_1000_175_n"
-    }
-  },
-  {
-    "id": "C00-C1",
-    "sku": "60103",
-    "material": "PC",
-    "product": "PC",
-    "color_name": "Transparent",
     "color_hex": "00000000",
     "color_hexes": [
       "00000000"
@@ -4697,19 +4542,19 @@
   },
   {
     "id": "G00-G00",
-    "sku": "30105",
+    "sku": "30502",
     "material": "PETG",
     "product": "PETG Basic",
-    "color_name": "Black",
-    "color_hex": "000000FF",
+    "color_name": "Green",
+    "color_hex": "009639FF",
     "color_hexes": [
-      "000000FF"
+      "009639FF"
     ],
     "weight": 1000,
     "temp_min": 220,
     "temp_max": 270,
     "integrations": {
-      "spoolman": "bambulab_petg_black_1000_175_n"
+      "spoolman": "bambulab_petg_green_1000_175_n"
     }
   },
   {
@@ -5002,23 +4847,6 @@
     }
   },
   {
-    "id": "G01-G02",
-    "sku": "32300",
-    "material": "PETG",
-    "product": "PETG Translucent",
-    "color_name": "Translucent Orange",
-    "color_hex": "FF911A80",
-    "color_hexes": [
-      "FF911A80"
-    ],
-    "weight": 1000,
-    "temp_min": 230,
-    "temp_max": 260,
-    "integrations": {
-      "spoolman": "bambulab_petg_translucentorange_1000_175_n"
-    }
-  },
-  {
     "id": "G01-G1",
     "sku": "32501",
     "material": "PETG",
@@ -5224,7 +5052,7 @@
   },
   {
     "id": "G02-K0",
-    "sku": "33102",
+    "sku": "30105",
     "material": "PETG",
     "product": "PETG HF",
     "color_name": "Black",
@@ -5615,10 +5443,10 @@
   },
   {
     "id": "S00-W0",
-    "sku": "10900",
+    "sku": null,
     "material": "PLA-S",
     "product": "Support W",
-    "color_name": "Arctic Whisper",
+    "color_name": "Nature",
     "color_hex": "FFFFFFFF",
     "color_hexes": [
       "FFFFFFFF"
@@ -5648,28 +5476,11 @@
     }
   },
   {
-    "id": "S01-S03",
-    "sku": "65500",
-    "material": "Support",
-    "product": "Support for PA/PET",
-    "color_name": "Green",
-    "color_hex": "C0DF16FF",
-    "color_hexes": [
-      "C0DF16FF"
-    ],
-    "weight": null,
-    "temp_min": null,
-    "temp_max": null,
-    "integrations": {
-      "spoolman": "bambulab_pa_supportforpa/pet_500_175_n"
-    }
-  },
-  {
     "id": "S02-W0",
-    "sku": "10900",
+    "sku": "65104",
     "material": "PLA-S",
     "product": "Support for PLA",
-    "color_name": "Arctic Whisper",
+    "color_name": "White",
     "color_hex": "FFFFFFFF",
     "color_hexes": [
       "FFFFFFFF"
@@ -5751,7 +5562,7 @@
   },
   {
     "id": "S05-K0",
-    "sku": "10101",
+    "sku": "65103",
     "material": "PLA-S",
     "product": "Support for PLA",
     "color_name": "Black",
@@ -5764,23 +5575,6 @@
     "temp_max": 220,
     "integrations": {
       "spoolman": null
-    }
-  },
-  {
-    "id": "S05-S05",
-    "sku": "65103",
-    "material": "Support",
-    "product": "Support for PLA/PETG",
-    "color_name": "Black",
-    "color_hex": "000000FF",
-    "color_hexes": [
-      "000000FF"
-    ],
-    "weight": null,
-    "temp_min": null,
-    "temp_max": null,
-    "integrations": {
-      "spoolman": "bambulab_pla_supportforpla/petgblack_500_175_n"
     }
   },
   {

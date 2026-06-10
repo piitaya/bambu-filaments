@@ -66,7 +66,6 @@ RE_ROW = re.compile(
     r"\s*([^|]*?)\s*\|"
 )
 RE_VARIANT_ID = re.compile(r"[A-Z]\d+-\w+")
-RE_SLASH_ID = re.compile(r"([A-Z]\d+-)(\w+)/(\w+)")
 
 
 # --- Helpers ---
@@ -144,20 +143,11 @@ def parse_rfid_readme(markdown: str) -> list[dict]:
         def add(vid):
             entries.append({"section": section, "color": color, "code": code, "variant_id": vid})
 
-        # "A00-G1/G6" -> two entries
-        m = RE_SLASH_ID.match(raw_id)
-        if m:
-            add(m.group(1) + m.group(2))
-            add(m.group(1) + m.group(3))
-            continue
+        # "A00-W01/A00-W1" or "A00-G06/A00-G1/A00-G6" -> N full IDs
+        for vid in RE_VARIANT_ID.findall(raw_id):
+            add(vid)
 
-        # "S02-W0 (Old: S00-W0)" -> primary + old
-        primary = RE_VARIANT_ID.match(raw_id)
-        if primary:
-            add(primary.group(0))
-            old = re.search(r"Old:\s*([A-Z]\d+-\w+)", raw_id)
-            if old:
-                add(old.group(1))
+        # "S02-W0 (Old: S00-W0)" -> Old IDs are already picked up by findall above
 
     return entries
 
@@ -393,14 +383,25 @@ def lookup_bambu_by_hex(
     bambu_by_hex: dict,
     product_prefixes: dict,
 ) -> tuple[str | None, dict | None]:
-    """Look up a BambuStudio entry by color hex, disambiguated by known product prefixes."""
+    """Look up a BambuStudio entry by color hex, restricted to the product's SKU prefixes.
+
+    Hex collisions are common (FFFFFFFF, 000000FF) so without a prefix filter we'd
+    silently pick the wrong SKU. If the product has no known prefix (legacy variants
+    like "Support W" that aren't in the current Bambu catalog) or no candidate
+    matches, return None — the caller falls back to the folder color hint.
+    """
     if not color_hex:
         return None, None
-    candidates = bambu_by_hex.get(color_hex, [])
     prefixes = product_prefixes.get(product, set())
-    filtered = [c for c in candidates if c[0][:2] in prefixes] if prefixes else []
-    picked = filtered[0] if filtered else (candidates[0] if candidates else None)
-    return picked if picked else (None, None)
+    if not prefixes:
+        return None, None
+    # Prefer single-color SKUs over gradients: a dump with one hex shouldn't match
+    # a gradient SKU just because its first color happens to be the same.
+    candidates = [c for c in bambu_by_hex.get(color_hex, []) if c[0][:2] in prefixes]
+    if not candidates:
+        return None, None
+    candidates.sort(key=lambda c: len(c[1].get("cols", [])))
+    return candidates[0]
 
 
 def resolve_sku(
@@ -544,12 +545,18 @@ def main():
 
     # README: variant -> list of SKUs (re-released variants keep all)
     skus_by_variant: dict[str, list[str]] = {}
-    # Product -> known BambuStudio SKU prefixes (disambiguates shared hexes like 000000)
+    # Product -> known BambuStudio SKU prefixes (disambiguates shared hexes like
+    # 000000 or FFFFFFFF). Populated from both README sections and BambuStudio's
+    # `fila_type` because the same product can appear under different names
+    # (e.g. README "Support for PLA (New Version)" vs BambuStudio/dump "Support for PLA").
     product_prefixes: dict[str, set[str]] = {}
     for e in readme_entries:
         skus_by_variant.setdefault(e["variant_id"], []).append(e["code"])
         if e.get("code") and e.get("section"):
             product_prefixes.setdefault(e["section"], set()).add(e["code"][:2])
+    for e in bambu_derived:
+        if e.get("sku") and e.get("product"):
+            product_prefixes.setdefault(e["product"], set()).add(e["sku"][:2])
 
     # BambuStudio RRGGBBAA -> [(sku, info), ...]
     bambu_by_hex: dict[str, list[tuple[str, dict]]] = {}
