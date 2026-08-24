@@ -91,7 +91,7 @@ Provide optional fields explicitly to override the auto-lookups (useful when the
 
 ## How matching works
 
-1. Clone the RFID library, walk every `*-dump.json`, extract variant ID, material and color hex from each tag (one entry per unique variant)
+1. Clone the RFID library, walk every `*-dump.json`, extract variant ID, material and color hex from each tag (one entry per unique variant, each field decided by majority vote across that variant's tags)
 2. Look up the 5-digit product code from the upstream README; when a variant has multiple codes (re-released SKUs), pick the one whose BambuStudio hex matches the tag hex
 3. Find the SpoolmanDB filament: exact name, normalized name, Grey/Gray swap, match after stripping parenthesized suffixes, then hex code as a last resort
 4. Color names use BambuStudio's official names when available, with SpoolmanDB as fallback

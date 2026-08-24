@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 import urllib.request
+from collections import Counter
 from pathlib import Path
 
 RFID_REPO_URL = "https://github.com/queengooborg/Bambu-Lab-RFID-Library.git"
@@ -180,8 +181,47 @@ def _u16_le(block: bytes, offset: int) -> int:
     return int.from_bytes(block[offset:offset + 2], "little")
 
 
-def parse_rfid_dumps() -> list[dict]:
-    """Parse all RFID tag dumps.
+def _majority(values, prefer=lambda v: False):
+    counts = Counter(v for v in values if v is not None)
+    if not counts:
+        return None
+    return max(counts, key=lambda v: (counts[v], prefer(v)))
+
+
+def _merge_dumps(dumps: list[dict], known_hexes: set[str]) -> dict:
+    """Majority vote per field across all dumps of one variant.
+
+    Individual tags can carry bad data (empty color, odd weight, block 4 saying
+    "ABS" on an ABS-GF tag), so the value most tags agree on wins. Ties go to
+    BambuStudio-known hexes and to materials consistent with the product.
+    """
+    products = [d["product"] for d in dumps]
+    material = _majority(
+        [d["material"] for d in dumps],
+        lambda m: any(p.startswith(m) for p in products),
+    )
+    product = _majority(
+        [p for p in products if material and p.startswith(material)] or products
+    )
+    colors = _majority(
+        [tuple(d["color_hexes"]) for d in dumps],
+        lambda c: bool(c) and c[0] in known_hexes,
+    ) or ()
+    return {
+        "id": dumps[0]["id"],
+        "material": material,
+        "product": product,
+        "color_hex": colors[0] if colors else None,
+        "color_hexes": list(colors),
+        "weight": _majority([d["weight"] for d in dumps]),
+        "temp_min": _majority([d["temp_min"] for d in dumps]),
+        "temp_max": _majority([d["temp_max"] for d in dumps]),
+        "_color_hint": dumps[0]["_color_hint"],
+    }
+
+
+def parse_rfid_dumps(known_hexes: set[str] = frozenset()) -> list[dict]:
+    """Parse all RFID tag dumps, merging every tag of a variant by majority vote.
 
     Block layout (per Bambu-Lab-RFID-Tag-Guide):
       Block 1: [0:8]=variant_id (MQTT tray_id_name)
@@ -193,7 +233,7 @@ def parse_rfid_dumps() -> list[dict]:
     """
     fetch_rfid_repo()
 
-    by_variant: dict[str, dict] = {}
+    by_variant: dict[str, list[dict]] = {}
 
     for dump_path in sorted(RFID_CACHE_DIR.rglob("hf-mf-*-dump.json")):
         try:
@@ -241,11 +281,10 @@ def parse_rfid_dumps() -> list[dict]:
         # Folder hint for SpoolmanDB color-name matching: <product>/<color>/<tagUID>/<file>
         color_hint = dump_path.parts[-3] if len(dump_path.parts) >= 3 else ""
 
-        by_variant.setdefault(variant_id, {
+        by_variant.setdefault(variant_id, []).append({
             "id": variant_id,
             "material": material or None,
             "product": product,
-            "color_hex": color_hex,
             "color_hexes": color_hexes,
             "weight": weight,
             "temp_min": temp_min,
@@ -253,7 +292,7 @@ def parse_rfid_dumps() -> list[dict]:
             "_color_hint": color_hint,
         })
 
-    return list(by_variant.values())
+    return [_merge_dumps(dumps, known_hexes) for dumps in by_variant.values()]
 
 
 def parse_spoolman(filaments: list[dict]) -> dict[str, list[dict]]:
@@ -537,10 +576,11 @@ def backfill_specs(results: list[dict]) -> None:
 
 def main():
     print("Fetching sources...")
-    dump_entries = parse_rfid_dumps()
+    bambu_names, bambu_derived = parse_bambu(json.loads(download(BAMBU_COLORS_URL)))
+    known_hexes = {h for info in bambu_names.values() for h in info["cols"]}
+    dump_entries = parse_rfid_dumps(known_hexes)
     readme_entries = parse_rfid_readme(download(RFID_README_URL))
     spoolman = parse_spoolman(json.loads(download(SPOOLMAN_URL)))
-    bambu_names, bambu_derived = parse_bambu(json.loads(download(BAMBU_COLORS_URL)))
     manual = load_manual_additions()
 
     # README: variant -> list of SKUs (re-released variants keep all)
