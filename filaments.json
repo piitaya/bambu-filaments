@@ -633,7 +633,7 @@
     "temp_min": 190,
     "temp_max": 230,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_duskglare_1000_175_n"
     }
   },
   {
@@ -4014,6 +4014,23 @@
     }
   },
   {
+    "id": "B00-K00",
+    "sku": "40101",
+    "material": "ABS",
+    "product": "ABS",
+    "color_name": "Black",
+    "color_hex": "000000FF",
+    "color_hexes": [
+      "000000FF"
+    ],
+    "weight": 1000,
+    "temp_min": 240,
+    "temp_max": 270,
+    "integrations": {
+      "spoolman": "bambulab_abs_black_1000_175_n"
+    }
+  },
+  {
     "id": "B00-P4",
     "sku": "40701",
     "material": "ABS",
@@ -4792,7 +4809,7 @@
     "temp_min": 230,
     "temp_max": 260,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_petg_darkbrown_1000_175_n"
     }
   },
   {
