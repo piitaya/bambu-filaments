@@ -47,7 +47,7 @@
     "temp_min": 190,
     "temp_max": 230,
     "integrations": {
-      "spoolman": "bambulab_pla_orange_1000_175_n"
+      "spoolman": "bambulab_pla_pumpkinorange_1000_175_n"
     }
   },
   {
@@ -1756,7 +1756,7 @@
     "temp_min": 210,
     "temp_max": 230,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_silkblue_1000_175_n"
     }
   },
   {
@@ -1773,7 +1773,7 @@
     "temp_min": 210,
     "temp_max": 230,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_silksilver_1000_175_n"
     }
   },
   {
@@ -1790,7 +1790,7 @@
     "temp_min": 210,
     "temp_max": 230,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_silkgreen_1000_175_n"
     }
   },
   {
@@ -1861,7 +1861,7 @@
     "temp_min": 210,
     "temp_max": 230,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_silkcopper_1000_175_n"
     }
   },
   {
@@ -1878,7 +1878,7 @@
     "temp_min": 210,
     "temp_max": 230,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_silkpink_1000_175_n"
     }
   },
   {
@@ -1895,7 +1895,7 @@
     "temp_min": 210,
     "temp_max": 230,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_silkpurple_1000_175_n"
     }
   },
   {
@@ -2038,7 +2038,7 @@
     "temp_min": 210,
     "temp_max": 230,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_silkwhite_1000_175_n"
     }
   },
   {
@@ -2055,7 +2055,7 @@
     "temp_min": 210,
     "temp_max": 230,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_silkgold_1000_175_n"
     }
   },
   {
@@ -2157,7 +2157,7 @@
     "temp_min": 190,
     "temp_max": 240,
     "integrations": {
-      "spoolman": "bambulab_pla_silk+silver_1000_175_n"
+      "spoolman": "bambulab_pla_silk+titangray_1000_175_n"
     }
   },
   {
@@ -2956,7 +2956,7 @@
     "temp_min": 210,
     "temp_max": 260,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_aeroblack_1000_175_n"
     }
   },
   {
@@ -2973,7 +2973,7 @@
     "temp_min": 210,
     "temp_max": 260,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_aerowhite_1000_175_n"
     }
   },
   {
@@ -3228,7 +3228,7 @@
     "temp_min": 190,
     "temp_max": 230,
     "integrations": {
-      "spoolman": "bambulab_pla+wood_rosewood_1000_175_n"
+      "spoolman": "bambulab_pla+wood_blackwalnut_1000_175_n"
     }
   },
   {
@@ -4469,7 +4469,7 @@
     "temp_min": 260,
     "temp_max": 280,
     "integrations": {
-      "spoolman": "bambulab_pc_clearblack_1000_175_n"
+      "spoolman": "bambulab_pc_transparent_1000_175_n"
     }
   },
   {
@@ -5795,7 +5795,7 @@
     "temp_min": 190,
     "temp_max": 230,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_supportforplawhite_500_175_n"
     }
   },
   {
@@ -5812,7 +5812,7 @@
     "temp_min": 190,
     "temp_max": 240,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_supportforplawhite_500_175_n"
     }
   },
   {
@@ -5829,7 +5829,7 @@
     "temp_min": 280,
     "temp_max": 300,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pa_supportforpa/pet_500_175_n"
     }
   },
   {
@@ -5863,7 +5863,7 @@
     "temp_min": 190,
     "temp_max": 220,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_supportforpla/petgnature_500_175_n"
     }
   },
   {
@@ -5880,7 +5880,7 @@
     "temp_min": 190,
     "temp_max": 220,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pla_supportforpla/petgblack_500_175_n"
     }
   },
   {
@@ -5914,7 +5914,7 @@
     "temp_min": null,
     "temp_max": null,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pet-cf_black_1000_175_n"
     }
   },
   {
@@ -5931,7 +5931,7 @@
     "temp_min": null,
     "temp_max": null,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_pps-cf_black_1000_175_n"
     }
   },
   {
@@ -5948,7 +5948,7 @@
     "temp_min": null,
     "temp_max": null,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_tpu-95a_hfblue_1000_175_n"
     }
   },
   {
@@ -5965,7 +5965,7 @@
     "temp_min": null,
     "temp_max": null,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_tpu-95a_hfgray_1000_175_n"
     }
   },
   {
@@ -5982,7 +5982,7 @@
     "temp_min": null,
     "temp_max": null,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_tpu-95a_hfblack_1000_175_n"
     }
   },
   {
@@ -5999,7 +5999,7 @@
     "temp_min": null,
     "temp_max": null,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_tpu-95a_hfred_1000_175_n"
     }
   },
   {
@@ -6016,7 +6016,7 @@
     "temp_min": null,
     "temp_max": null,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_tpu-95a_hfwhite_1000_175_n"
     }
   },
   {
@@ -6033,7 +6033,7 @@
     "temp_min": null,
     "temp_max": null,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_tpu-95a_hfyellow_1000_175_n"
     }
   },
   {
@@ -6237,7 +6237,7 @@
     "temp_min": null,
     "temp_max": null,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_tpu-90a_black_1000_175_n"
     }
   },
   {
@@ -6255,7 +6255,7 @@
     "temp_min": null,
     "temp_max": null,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_tpu-90a_frozen_1000_175_n"
     }
   },
   {
@@ -6273,7 +6273,7 @@
     "temp_min": null,
     "temp_max": null,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_tpu-90a_blaze_1000_175_n"
     }
   },
   {
@@ -6324,7 +6324,7 @@
     "temp_min": null,
     "temp_max": null,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_tpu-90a_white_1000_175_n"
     }
   },
   {
@@ -6341,7 +6341,7 @@
     "temp_min": null,
     "temp_max": null,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_tpu-85a_neonorange_1000_175_n"
     }
   },
   {
@@ -6358,7 +6358,7 @@
     "temp_min": null,
     "temp_max": null,
     "integrations": {
-      "spoolman": null
+      "spoolman": "bambulab_tpu-85a_lightcyan_1000_175_n"
     }
   },
   {

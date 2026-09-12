@@ -32,8 +32,9 @@ MATERIAL_MAP = {
     "PLA Tough+": ("PLA", "Tough+ ", ""),
     "PLA Wood": ("PLA+WOOD", "", ""),
     "PLA-CF": ("PLA-CF", "", ""),
+    "PLA Silk": ("PLA", "Silk ", ""),
+    "PLA Aero": ("PLA", "Aero ", ""),
     "PLA Lite": None,
-    "PLA Aero": None,
     "PLA Tough": None,
     "PETG Basic": ("PETG", "", ""),
     "PETG HF": ("PETG", "HF ", ""),
@@ -47,17 +48,25 @@ MATERIAL_MAP = {
     "PC": ("PC", "", ""),
     "PC FR": ("PC", "FR ", ""),
     "TPU for AMS": ("TPU", "For AMS ", ""),
+    "TPU 85A": ("TPU-85A", "", ""),
+    "TPU 90A": ("TPU-90A", "", ""),
+    "TPU 95A": None,
+    "TPU 95A HF": ("TPU-95A", "HF ", ""),
     "PAHT-CF": ("PAHT-CF", "", ""),
+    "PET-CF": ("PET-CF", "", ""),
+    "PPS-CF": ("PPS-CF", "", ""),
     "PA6-GF": ("PA6-GF", "", ""),
     "PA6-CF": ("PA6-CF", "", ""),
     "Support for PLA/PETG": ("PLA", "Support for PLA/PETG ", ""),
     "Support for PLA (New Version)": ("PLA", "Support for PLA ", ""),
+    "Support for PLA": ("PLA", "Support for PLA ", ""),
     "Support for ABS": ("ABS", "Support for ABS", ""),
     "Support for PA/PET": ("PA", "Support for PA/PET", ""),
+    "Support For PA": ("PA", "Support for PA/PET", ""),
     "PVA": ("PVA", "", ""),
 }
 
-SUPPORT_NO_COLOR = {"Support for ABS", "Support for PA/PET"}
+SUPPORT_NO_COLOR = {"Support for ABS", "Support for PA/PET", "Support For PA"}
 
 RE_SECTION = re.compile(r"^####\s+\[([^\]]+)\]", re.MULTILINE)
 RE_ROW = re.compile(
@@ -405,13 +414,19 @@ def find_spoolman_match(
         if base == target or normalize_name(base) == norm:
             return _found(c)
 
-    # Hex match (last resort, only within same material). Compare RGB only — SpoolmanDB mixes 6 and 8-char.
+    # Hex match (last resort, only within same material, and only when unambiguous:
+    # common hexes like FFFFFF appear on many entries). Compare RGB only — SpoolmanDB
+    # mixes 6 and 8-char.
     if bambu_hex:
         bambu_rgb = bambu_hex.lower()[:6]
-        for c in candidates:
-            c_rgb = (c.get("color_hex") or "").lower()[:6]
-            if c_rgb and c_rgb == bambu_rgb:
-                return _found(c)
+        hits = [c for c in candidates if (c.get("color_hex") or "").lower()[:6] == bambu_rgb]
+        if len(hits) == 1:
+            return _found(hits[0])
+
+    # Newer support spools still say "Support for PLA" on the tag but are sold
+    # (and listed in SpoolmanDB) as "Support for PLA/PETG".
+    if section == "Support for PLA":
+        return find_spoolman_match("Support for PLA/PETG", color, spoolman, bambu_hex)
 
     return None, None, None
 
@@ -639,14 +654,20 @@ def main():
         bambu_cols = bambu_info.get("cols", []) if bambu_info else []
 
         color_hint = entry.get("_color_hint") or ""
+        color_hexes = entry.get("color_hexes") or bambu_cols
         rgb = color_hex or (bambu_cols[0] if bambu_cols else None)
 
         manual_spoolman = entry.get("_manual_spoolman")
         if manual_spoolman is not None:
             spoolman_id, spoolman_name, spoolman_hex = manual_spoolman, None, None
         else:
+            # The folder hint can name the other SKU when a variant ID is shared
+            # (A16-R0 is both Black Walnut and Rosewood), so the hex-resolved
+            # BambuStudio name is more reliable.
+            match_color = (bambu_info["name"] if bambu_info else None) or color_hint
             spoolman_id, spoolman_name, spoolman_hex = find_spoolman_match(
-                product, color_hint, spoolman, rgb
+                product, match_color, spoolman,
+                rgb if len(color_hexes) <= 1 else None,
             )
 
         color_name = (
@@ -659,7 +680,6 @@ def main():
         # Backfill color from BambuStudio when the tag didn't provide it
         if not color_hex and bambu_cols:
             color_hex = bambu_cols[0]
-        color_hexes = entry.get("color_hexes") or bambu_cols
 
         if spoolman_id and rgb and spoolman_hex and rgb.lower()[:6] != spoolman_hex.lower()[:6]:
             hex_mismatches.append((vid, color_name, rgb, spoolman_hex, spoolman_id))
